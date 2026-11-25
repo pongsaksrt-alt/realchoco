@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cocoa Bar | ช็อกโกแลตแท่ง</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#faf5ee;--ink:#2b1a10;--brand:#6b3a1e;--card:#fff}
+*{box-sizing:border-box}body{margin:0;font-family:Prompt,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--brand);color:#fff;text-align:center;padding:64px 20px}
+header h1{margin:0 0 8px;font-size:2.2rem}header a{display:inline-block;margin-top:18px;background:#fff;color:var(--brand);padding:12px 28px;border-radius:30px;text-decoration:none;font-weight:600}
+section{max-width:960px;margin:auto;padding:36px 16px}h2{text-align:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.card{background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 2px 10px #0001}
+.card img{width:100%;aspect-ratio:1;object-fit:cover}.card>div{padding:14px}
+.price{color:var(--brand);font-weight:600;font-size:1.2rem}
+.qty{display:flex;align-items:center;gap:12px;margin-top:8px}.qty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--brand);background:#fff;font-size:1.1rem;cursor:pointer}
+form{background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 10px #0001;display:grid;gap:10px}
+input,textarea{width:100%;padding:11px;border:1px solid #ccc;border-radius:8px;font:inherit}
+.btn{background:var(--brand);color:#fff;border:0;padding:14px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}.btn:disabled{opacity:.5}
+#sum{font-weight:600}#msg{text-align:center;font-weight:600;margin-top:10px}
+footer{text-align:center;padding:24px;color:#777;font-size:.9rem}
+</style></head><body>
+<header><h1>🍫 Cocoa Bar</h1><p>ช็อกโกแลตแท่งคุณภาพ หอม เข้มข้น ส่งตรงถึงบ้านคุณ</p><a href="#shop">สั่งซื้อเลย</a></header>
+<section id="shop"><h2>สินค้าของเรา</h2><div class="grid" id="list">กำลังโหลด...</div></section>
+<section><h2>กรอกข้อมูลจัดส่ง</h2>
+<form id="f"><div id="sum">ยังไม่ได้เลือกสินค้า</div>
+<input name="name" placeholder="ชื่อ-นามสกุล" required>
+<input name="phone" placeholder="เบอร์โทร" pattern="[0-9]{9,10}" required>
+<textarea name="address" rows="3" placeholder="ที่อยู่จัดส่ง (รวมรหัสไปรษณีย์)" required></textarea>
+<input name="note" placeholder="หมายเหตุ (ถ้ามี)">
+<button class="btn" id="go">ยืนยันการสั่งซื้อ</button><div id="msg"></div></form></section>
+<footer>© Cocoa Bar</footer>
+<script>
+const API='https://script.google.com/macros/s/AKfycbzghPvQo-XgNzt5SWZYjulkk2UyawJY2I2vk4KZxmJMLBjNpN5kCtUYt7BS4cCLBbmp4w/exec';
+const FALLBACK=[{SKU:'CHO-001',Name:'ดาร์กช็อกโกแลต 70%',Price:89,Image:'images/dark70.svg',Description:'เข้มข้น หอมโกโก้แท้'},{SKU:'CHO-002',Name:'มิลค์ช็อกโกแลต',Price:79,Image:'images/milk.svg',Description:'หวานนุ่ม ละลายในปาก'}];
+let products=[],cart={};
+const $=s=>document.querySelector(s);
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){
+  try{const r=await(await fetch(API+'?action=products')).json();products=r.products}catch(e){products=FALLBACK}
+  render();
+}
+function render(){
+  $('#list').innerHTML=products.map(p=>`<div class="card"><img src="${esc(p.Image)}" alt="${esc(p.Name)}"><div><b>${esc(p.Name)}</b><p>${esc(p.Description||'')}</p><div class="price">${p.Price} บาท</div>${p.Stock===0?'<i>สินค้าหมด</i>':`<div class="qty"><button type="button" onclick="chg('${p.SKU}',-1)">−</button><span id="q-${p.SKU}">${cart[p.SKU]||0}</span><button type="button" onclick="chg('${p.SKU}',1)">+</button></div>`}</div></div>`).join('');
+}
+function chg(sku,d){
+  cart[sku]=Math.max(0,(cart[sku]||0)+d);$('#q-'+sku).textContent=cart[sku];
+  let t=0,n=0;products.forEach(p=>{const q=cart[p.SKU]||0;t+=q*p.Price;n+=q});
+  $('#sum').textContent=n?`${n} ชิ้น รวม ${t} บาท`:'ยังไม่ได้เลือกสินค้า';
+}
+$('#f').onsubmit=async e=>{
+  e.preventDefault();
+  const items=Object.entries(cart).filter(([,q])=>q>0).map(([sku,qty])=>({sku,qty}));
+  if(!items.length){$('#msg').textContent='กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้น';return}
+  const f=new FormData(e.target);$('#go').disabled=true;$('#msg').textContent='กำลังส่งคำสั่งซื้อ...';
+  try{
+    const r=await(await fetch(API,{method:'POST',body:JSON.stringify({action:'order',items,name:f.get('name'),phone:f.get('phone'),address:f.get('address'),note:f.get('note')})})).json();
+    if(r.ok){$('#msg').textContent=`✅ สั่งซื้อสำเร็จ เลขที่ ${r.orderId} ยอดรวม ${r.total} บาท`;cart={};e.target.reset();$('#sum').textContent='ยังไม่ได้เลือกสินค้า';load()}
+    else{$('#msg').textContent='❌ '+r.error}
+  }catch(err){$('#msg').textContent='❌ ส่งไม่สำเร็จ ลองใหม่อีกครั้ง'}
+  $('#go').disabled=false;
+};
+load();
+</script></body></html>
